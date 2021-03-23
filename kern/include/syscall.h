@@ -59,4 +59,12 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
+// System call implementation prototypes for assignment
+int sys_open(/*const char *filename, int flags, mode_t mode*/);
+int sys_close(int fd);
+int sys_read(int fd);
+int sys_write(int fd);
+int sys_lseek(int fd);
+int sys_dup2(int oldfd, int newfd);
+
 #endif /* _SYSCALL_H_ */
