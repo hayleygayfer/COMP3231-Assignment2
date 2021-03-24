@@ -36,6 +36,8 @@
 #include <current.h>
 #include <syscall.h>
 
+#include <copyinout.h>
+
 
 /*
  * System call dispatcher.
@@ -81,12 +83,15 @@ syscall(struct trapframe *tf)
 	int callno;
 	int32_t retval;
 	int err;
+	// off_t retval64;
+	// ssize_t retval_signed;
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
 	KASSERT(curthread->t_iplhigh_count == 0);
 
 	callno = tf->tf_v0;
+	err = 0;
 
 	/*
 	 * Initialize retval to 0. Many of the system calls don't
@@ -116,6 +121,37 @@ syscall(struct trapframe *tf)
 
 	    /* Add stuff here */
 
+		// TODO: check convention
+
+		case SYS_open:
+		retval = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1, (mode_t)tf->tf_a2);
+		break;
+
+/*
+		case SYS_close:
+		retval = sys_close((userptr_t)tf->tf_a0);
+		break;
+		
+		case SYS_read:
+		retval_signed = sys_read((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1, (userptr_t)tf->tf_a2);
+		break;		
+
+		case SYS_write:
+		retval_signed = sys_write((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1, (userptr_t)tf->tf_a2);
+		break;
+
+		case SYS_lseek:
+		int whence;
+		uint64_t offset;
+		copyin((userptr_t)tf->tf_sp + 16, &whence, sizeof(int));
+		join32to64(tf->tf_a2, tf->tf_a3, &offset);
+		retval64 = sys_lseek((userptr_t)tf->tf_a0, offset, whence);
+		break;
+		
+		case SYS_dup2:
+		retval = sys_dup2((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1);
+		break;
+*/
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;

@@ -60,11 +60,11 @@ int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
 // System call implementation prototypes for assignment
-int sys_open(/*const char *filename, int flags, mode_t mode*/);
-int sys_close(int fd);
-int sys_read(int fd);
-int sys_write(int fd);
-int sys_lseek(int fd);
-int sys_dup2(int oldfd, int newfd);
+int32_t sys_open(userptr_t filename, int flags, mode_t mode);
+int32_t sys_close(int fd);
+ssize_t sys_read(int fd, void *buf, size_t buflen);
+ssize_t sys_write(int fd, const void *buf, size_t nbytes);
+off_t sys_lseek(int fd, off_t pos, int whence);
+int32_t sys_dup2(int oldfd, int newfd);
 
 #endif /* _SYSCALL_H_ */
