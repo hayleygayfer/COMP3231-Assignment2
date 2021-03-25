@@ -29,7 +29,7 @@ of_entry open_file_table[OPEN_MAX];
 // create a new open file | return pointer to the open_file struct
 of_entry *create_open_file(void) {
     of_entry *new_open_file = kmalloc(sizeof(of_entry));
-    new_open_file->fp = NULL;
+    new_open_file->file_offset = 0;
     new_open_file->v_ptr = NULL;
 
     return new_open_file;
@@ -93,4 +93,46 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
 
     return 0;
 }
+/*
+int32_t sys_close(int fd) {
+    return 0;
+}
+
+ssize_t sys_read(int fd, void *buf, size_t buflen) {
+    return (ssize_t)0;
+}*/
+
+ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
+/*
+    int result;
+
+    struct uio u;
+    struct iovec iov;
+
+    uio_kinit(&iov, &u, (void *)buf, nbytes, curproc->file_table[fd]->file_offset, UIO_WRITE);
+
+    size_t remain = u.uio_resid;
+    
+    result = VOP_WRITE(curproc->file_table[fd]->v_ptr, &u);
+    if (result) {
+        return result;
+    }
+
+    remain = nbytes - u.uio_resid;
+
+    curproc->file_table[fd]->file_offset = u.uio_offset;
+
+    return remain;
+    */
+}
+
+/*
+off_t sys_lseek(int fd, off_t pos, int whence) {
+    return (ssize_t)0;
+}
+
+int32_t sys_dup2(int oldfd, int newfd) {
+    return 0;
+}
+*/
 

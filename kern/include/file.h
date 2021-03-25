@@ -27,8 +27,8 @@
 
 // open file table entry
 typedef struct open_file {
-    int *fp;
     struct vnode *v_ptr;
+    off_t file_offset;
 } of_entry;
 
 // file descriptor entry 

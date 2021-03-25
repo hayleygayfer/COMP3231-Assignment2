@@ -84,7 +84,7 @@ syscall(struct trapframe *tf)
 	int32_t retval;
 	int err;
 	// off_t retval64;
-	// ssize_t retval_signed;
+	//ssize_t retval_signed;
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -103,6 +103,7 @@ syscall(struct trapframe *tf)
 	 */
 
 	retval = 0;
+	//retval_signed = (ssize_t)0;
 
 	switch (callno) {
 
@@ -129,7 +130,6 @@ syscall(struct trapframe *tf)
 		kprintf("OPEN CASE\n");
 		retval = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1, (mode_t)tf->tf_a2);
 		break;
-
 /*
 		case SYS_close:
 		retval = sys_close((userptr_t)tf->tf_a0);
@@ -140,7 +140,7 @@ syscall(struct trapframe *tf)
 		break;		
 */
 		case SYS_write:
-		retval_signed = sys_write((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1, (userptr_t)tf->tf_a2);
+		retval = (int32_t)sys_write((int)tf->tf_a0, (const void *)tf->tf_a1, (size_t)tf->tf_a2);
 		break;
 /*
 		case SYS_lseek:
@@ -178,7 +178,6 @@ syscall(struct trapframe *tf)
 		tf->tf_v0 = retval;
 		tf->tf_a3 = 0;      /* signal no error */
 		kprintf("success retval%d\n", retval);
-
 	}
 
 	/*
