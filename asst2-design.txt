@@ -1,1 +1,17 @@
-Add your design document in here.
+21T1 COMP3231 ASSIGNMENT 2 DESIGN DOCUMENT
+Hayley Gayfer (z5312096) and Ada Luong (z5312237)
+------------------------------------------------------------------------------------------------
+What data structures have you added and what function do they perform?
+
+------------------------------------------------------------------------------------------------
+
+What are any significant issues surround managing the data structures and state do they contain?
+
+------------------------------------------------------------------------------------------------
+What data structures are per-process and what structures are shared between processes?
+
+------------------------------------------------------------------------------------------------
+Are there any issues related to transferring data to and from applications?
+
+------------------------------------------------------------------------------------------------
+If fork() was implemented, what concurrency issues would be introduced to your implementation?
