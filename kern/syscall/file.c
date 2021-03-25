@@ -76,7 +76,8 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
 
     // Creating open file node 
     of_entry *ret = create_open_file();
-    vfs_open(sname, flags, mode, &ret->v_ptr);
+    int result = vfs_open(sname, flags, mode, &ret->v_ptr);
+    if (result != 0) return 1;
 
     // Inserting open file node into the open file table
     int ret_val = add_to_of_table(ret);

@@ -105,6 +105,7 @@ syscall(struct trapframe *tf)
 	retval = 0;
 
 	switch (callno) {
+
 	    case SYS_reboot:
 		err = sys_reboot(tf->tf_a0);
 		break;
@@ -118,12 +119,14 @@ syscall(struct trapframe *tf)
                 kprintf("exit() was called, but it's unimplemented.\n");
                 kprintf("This is expected if your user-level program has finished.\n");
                 panic("Can't continue further until sys_exit() is implemented");
+		break;
 
 	    /* Add stuff here */
 
 		// TODO: check convention
 
 		case SYS_open:
+		kprintf("OPEN CASE\n");
 		retval = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1, (mode_t)tf->tf_a2);
 		break;
 
@@ -135,11 +138,11 @@ syscall(struct trapframe *tf)
 		case SYS_read:
 		retval_signed = sys_read((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1, (userptr_t)tf->tf_a2);
 		break;		
-
+*/
 		case SYS_write:
 		retval_signed = sys_write((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1, (userptr_t)tf->tf_a2);
 		break;
-
+/*
 		case SYS_lseek:
 		int whence;
 		uint64_t offset;
@@ -153,7 +156,7 @@ syscall(struct trapframe *tf)
 		break;
 */
 	    default:
-		kprintf("Unknown syscall %d\n", callno);
+		kprintf("unknown syscall %d\n", callno);
 		err = ENOSYS;
 		break;
 	}
@@ -167,11 +170,15 @@ syscall(struct trapframe *tf)
 		 */
 		tf->tf_v0 = err;
 		tf->tf_a3 = 1;      /* signal an error */
+		kprintf("error err%d\n", err);
+
 	}
 	else {
 		/* Success. */
 		tf->tf_v0 = retval;
 		tf->tf_a3 = 0;      /* signal no error */
+		kprintf("success retval%d\n", retval);
+
 	}
 
 	/*

@@ -17,7 +17,7 @@ main(int argc, char * argv[])
         int fd, r, i, j , k;
         (void) argc;
         (void) argv;
-
+        kprintf("TESTING!!!!!!!!!\n");
         printf("\n**********\n* File Tester\n");
 
         snprintf(buf, MAX_BUF, "**********\n* write() works for stdout\n");
