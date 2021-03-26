@@ -102,28 +102,31 @@ ssize_t sys_read(int fd, void *buf, size_t buflen) {
     return (ssize_t)0;
 }*/
 
-ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
-/*
+ssize_t sys_write(int fd, const void *buf, size_t nbytes) { 
+
     int result;
 
-    struct uio u;
-    struct iovec iov;
-
-    uio_kinit(&iov, &u, (void *)buf, nbytes, curproc->file_table[fd]->file_offset, UIO_WRITE);
-
-    size_t remain = u.uio_resid;
+    struct uio *u = kmalloc(sizeof(struct uio));
+    struct iovec *iov = kmalloc(sizeof(struct iovec));
     
-    result = VOP_WRITE(curproc->file_table[fd]->v_ptr, &u);
+    if (curproc->file_table[fd] == NULL) {
+        curproc->file_table[fd] = create_open_file();
+    }
+
+    uio_kinit(iov, u, (void *)buf, nbytes, curproc->file_table[fd]->file_offset, UIO_WRITE);
+
+    result = VOP_WRITE(curproc->file_table[fd]->v_ptr, u);
+
     if (result) {
         return result;
     }
 
-    remain = nbytes - u.uio_resid;
+    // set file offset to updated offset after write
+    curproc->file_table[fd]->file_offset = u->uio_offset;
 
-    curproc->file_table[fd]->file_offset = u.uio_offset;
+    size_t bytes_written = nbytes - u->uio_resid;
 
-    return remain;
-    */
+    return bytes_written;    
 }
 
 /*
