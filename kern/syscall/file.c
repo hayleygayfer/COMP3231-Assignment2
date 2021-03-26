@@ -109,8 +109,8 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
     struct uio *u = kmalloc(sizeof(struct uio));
     struct iovec *iov = kmalloc(sizeof(struct iovec));
     
-    if (curproc->file_table[fd] == NULL) {
-        curproc->file_table[fd] = create_open_file();
+    if (fd == 0 || fd == 1 || fd == 2) {
+        
     }
 
     uio_kinit(iov, u, (void *)buf, nbytes, curproc->file_table[fd]->file_offset, UIO_WRITE);
