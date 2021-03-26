@@ -49,6 +49,10 @@
 #include <addrspace.h>
 #include <vnode.h>
 
+#include <kern/fcntl.h>
+#include <vfs.h>
+#include <file.h>
+
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
@@ -83,8 +87,10 @@ proc_create(const char *name)
 	proc->p_cwd = NULL;
 
 	/* initialising open file entry array */
-	for (int i = 0; i < OPEN_MAX; i++)
+
+	for (int i = 0; i < OPEN_MAX; i++) {
 		proc->file_table[i] = NULL;
+	}
 
 	return proc;
 }

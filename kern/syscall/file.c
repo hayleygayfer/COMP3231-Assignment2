@@ -16,82 +16,74 @@
 #include <copyinout.h>
 
 #define MAX_FILENAME_LEN 128
+#define SUCCESS          0
+#define ERROR            1 // change to appropriate error codes
 
-int current_of_index; // assume global variables initialised to 0
+#define STDIN            0
+#define STDOUT           1
+#define STDERR           2
+
+/* GLOBAL VARIABLES */
+
+int current_of_index; // init to 0
 of_entry open_file_table[OPEN_MAX];
 
-/*
- * Add your file-related functions here ...
- */
-
-/* INITIALISE THE TABLES */
+/* FILE RELATED FUNCTIONS */
 
 // create a new open file | return pointer to the open_file struct
 of_entry *create_open_file(void) {
+
     of_entry *new_open_file = kmalloc(sizeof(of_entry));
+    
     new_open_file->file_offset = 0;
     new_open_file->v_ptr = NULL;
 
     return new_open_file;
 }
 
-// add to the open file table / array | return success 0 or failure 1
+// Add to open file table if the table has not reached capacity
 int add_to_of_table(of_entry *ofptr) {
 
-    if (current_of_index >= OPEN_MAX) return 1;
+    if (current_of_index >= OPEN_MAX) return ERROR;
 
     /* ADD SYNCHRONISATION HERE */
-    
     open_file_table[current_of_index] = *ofptr;
     current_of_index++;
-
     /*--------------------------*/
 
-    return 0;
+    return SUCCESS;
 }
 
-/*
-// add to a descriptor array | return success 0 or failure 1
-int add_to_fd_table(int process, fd_entry *process_fd_table, of_entry *ofptr) {
+/* SYSCALL INTERFACE FUNCTIONS */
 
-    int current_index = process_fd_table[process].cur_index;
-
-    if (current_index >= MAX_PROCESS) return 1;
-
-    process_fd_table[process].process_fd_array[current_index] = ofptr;
-    process_fd_table[process].cur_index++;
-
-    return 0;
-}
-*/
-
-// SYSCALL INTERFACE FUNCTIONS
 int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
-    
-    char sname[MAX_FILENAME_LEN];
-    size_t *got = NULL;
 
-    // Converting the filename into a string
-    copyinstr(filename, sname, (size_t)MAX_FILENAME_LEN, got);
+    // Copy filename string into kernel-space 
+    char sname[MAX_FILENAME_LEN];
+    size_t *string_length = NULL;
+    copyinstr(filename, sname, (size_t)MAX_FILENAME_LEN, string_length);
 
     // Creating open file node 
     of_entry *ret = create_open_file();
-    int result = vfs_open(sname, flags, mode, &ret->v_ptr);
-    if (result != 0) return 1;
+
+    // Open file and store virtual node in ret struct
+    int result = vfs_open(sname, flags, mode, &(ret->v_ptr));
+    if (result) return ERROR;
 
     // Inserting open file node into the open file table
     int ret_val = add_to_of_table(ret);
-    if (ret_val == 1) return 1;
+    if (ret_val) return ERROR;
 
-    // changing the current proc to point to the open file node
+    // Changing the curproc to point to the next available open file node
     int i = 3;
     while (curproc->file_table[i] != NULL) {
         i++;
     }
 
+    // Inserting open file node into open file table
     curproc->file_table[i] = ret;
 
-    return 0;
+    return SUCCESS;
 }
 /*
 int32_t sys_close(int fd) {
@@ -103,30 +95,48 @@ ssize_t sys_read(int fd, void *buf, size_t buflen) {
 }*/
 
 ssize_t sys_write(int fd, const void *buf, size_t nbytes) { 
+    
+    // VERY DODGY THIS SHOULD BE SOMEWHERE ELSE     
+    if (curproc->file_table[fd] == NULL) {
+        curproc->file_table[fd] = create_open_file();
+        
+        /* handling stdin (0), stdout (1), stderr (2) */
+
+        // struct vnode *stdin_vptr;
+        struct vnode *stdout_vptr;
+        // struct vnode *stderr_vptr;
+
+        char stdio_path[] = "con:";
+
+        // vfs_open(stdio_path, O_RDONLY, 0, &stdin_vptr);
+        vfs_open(stdio_path, O_WRONLY, 0, &stdout_vptr);
+        // vfs_open(stdio_path, O_WRONLY, 0, &stderr_vptr);
+
+        curproc->file_table[fd]->v_ptr = stdout_vptr;
+    }
 
     int result;
 
-    struct uio *u = kmalloc(sizeof(struct uio));
-    struct iovec *iov = kmalloc(sizeof(struct iovec));
-    
-    if (fd == 0 || fd == 1 || fd == 2) {
-        
-    }
+    struct uio u;
+    struct iovec iov;
 
-    uio_kinit(iov, u, (void *)buf, nbytes, curproc->file_table[fd]->file_offset, UIO_WRITE);
+    // Copy buf string into kernel-space 
+    char *buffer = kmalloc(nbytes);  
+    copyin((const_userptr_t)buf, buffer, nbytes);
 
-    result = VOP_WRITE(curproc->file_table[fd]->v_ptr, u);
+    // Initialise uio suitable for I/O from a kernal buffer
+    uio_kinit(&iov, &u, buffer, nbytes, curproc->file_table[fd]->file_offset, UIO_WRITE);
+    result = VOP_WRITE(curproc->file_table[fd]->v_ptr, &u);
+    if (result) return ERROR;
 
-    if (result) {
-        return result;
-    }
+    // Update file offset
+    curproc->file_table[fd]->file_offset = u.uio_offset;
 
-    // set file offset to updated offset after write
-    curproc->file_table[fd]->file_offset = u->uio_offset;
+    size_t bytes_written = nbytes - u.uio_resid;
 
-    size_t bytes_written = nbytes - u->uio_resid;
+    kfree(buffer);
 
-    return bytes_written;    
+    return bytes_written;  
 }
 
 /*
