@@ -75,7 +75,7 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     if (ret_val) return ERROR;
 
     // Changing the curproc to point to the next available open file node
-    int i = 3;
+    int i = 0; // changing this so file node 0, 1, 2 still valid?? TODO
     while (curproc->file_table[i] != NULL) {
         i++;
     }
@@ -98,6 +98,7 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
     
     // VERY DODGY THIS SHOULD BE SOMEWHERE ELSE     
     if (curproc->file_table[fd] == NULL) {
+        kprintf("\n fd %d | ", fd);
         curproc->file_table[fd] = create_open_file();
         
         /* handling stdin (0), stdout (1), stderr (2) */
@@ -107,7 +108,7 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
         // struct vnode *stderr_vptr;
 
         char stdio_path[] = "con:";
-
+        
         // vfs_open(stdio_path, O_RDONLY, 0, &stdin_vptr);
         vfs_open(stdio_path, O_WRONLY, 0, &stdout_vptr);
         // vfs_open(stdio_path, O_WRONLY, 0, &stderr_vptr);
