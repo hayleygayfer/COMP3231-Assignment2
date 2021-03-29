@@ -99,7 +99,8 @@ runprogram(char *progname)
 		return result;
 	}
 
-	
+	// Handle stdio
+	run_stdio();
 
 	/* Warp to user mode. */
 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,

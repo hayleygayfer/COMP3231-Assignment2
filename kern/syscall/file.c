@@ -36,6 +36,7 @@ of_entry *create_open_file(void) {
     
     new_open_file->file_offset = 0;
     new_open_file->v_ptr = NULL;
+    new_open_file->flags = 0;
 
     return new_open_file;
 }
@@ -170,25 +171,6 @@ ssize_t sys_read(int fd, void *buf, size_t buflen) {
 }
 
 ssize_t sys_write(int fd, const void *buf, size_t nbytes) { 
-    // VERY DODGY THIS SHOULD BE SOMEWHERE ELSE     
-    if (curproc->file_table[fd] == NULL) {
-        curproc->file_table[fd] = create_open_file();
-        
-        /* handling stdin (0), stdout (1), stderr (2) */
-
-        // struct vnode *stdin_vptr;
-        struct vnode *stdout_vptr;
-        // struct vnode *stderr_vptr;
-
-        char stdio_path[] = "con:";
-        
-        // vfs_open(stdio_path, O_RDONLY, 0, &stdin_vptr);
-        vfs_open(stdio_path, O_WRONLY, 0, &stdout_vptr);
-        // vfs_open(stdio_path, O_WRONLY, 0, &stderr_vptr);
-
-        curproc->file_table[fd]->v_ptr = stdout_vptr;
-    }
-
     // ERROR CHECKING 
     if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
     if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
@@ -264,6 +246,75 @@ int32_t sys_dup2(int oldfd, int newfd) {
     curproc->file_table[newfd] = curproc->file_table[oldfd]; // put a copy of of_entry in fd into newfd
 
     return newfd;
+}
+
+int run_stdio() {
+    int result;
+    /* handling stdin (0), stdout (1), stderr (2) */
+
+    /*------------------STDIN---------------------*/
+    of_entry *stdin = create_open_file();
+
+    curproc->file_table[0] = stdin;
+    if (curproc->file_table[0] == NULL) return ENOMEM;
+
+    curproc->file_table[0]->flags = O_RDONLY;
+
+    // struct vnode *stdin_vptr;
+    struct vnode *stdin_vptr;
+    // struct vnode *stderr_vptr;
+
+    char c0[] = "con:";
+    
+    // vfs_open(stdio_path, O_RDONLY, 0, &stdin_vptr);
+    result = vfs_open(c0, O_RDONLY, 0, &stdin_vptr);
+    // vfs_open(stdio_path, O_WRONLY, 0, &stderr_vptr);
+
+    if (result) return result; // error handling
+
+    curproc->file_table[0]->v_ptr = stdin_vptr;
+
+    sys_close(0); // fd 0 can start closed
+
+    /*------------------STOUT---------------------*/
+
+    char c1[] = "con:";
+
+    of_entry *stdout = create_open_file();
+
+    curproc->file_table[1] = stdout;
+    if (curproc->file_table[1] == NULL) return ENOMEM;
+
+    curproc->file_table[1]->flags = O_WRONLY;
+
+    struct vnode *stdout_vptr;
+
+    result = vfs_open(c1, O_WRONLY, 0, &stdout_vptr);
+
+    curproc->file_table[1]->v_ptr = stdout_vptr;
+
+	if (result) return result; // error handling
+
+    /*------------------STERR---------------------*/
+
+    char c2[] = "con:";
+
+    of_entry *stderr = create_open_file();
+
+    curproc->file_table[2] = stderr;
+    if (curproc->file_table[2] == NULL) return ENOMEM;
+
+    curproc->file_table[2]->flags = O_WRONLY;
+
+    struct vnode *stderr_vptr;
+
+    result = vfs_open(c2, O_WRONLY, 0, &stderr_vptr);
+
+    curproc->file_table[2]->v_ptr = stderr_vptr;
+
+	if (result) return result; // error handling
+
+    return 0;
 }
 
 

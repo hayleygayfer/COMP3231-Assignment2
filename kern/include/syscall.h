@@ -66,5 +66,6 @@ ssize_t sys_read(int fd, void *buf, size_t buflen);
 ssize_t sys_write(int fd, const void *buf, size_t nbytes);
 off_t sys_lseek(int fd, off_t pos, int whence);
 int32_t sys_dup2(int oldfd, int newfd);
+int run_stdio(void);
 
 #endif /* _SYSCALL_H_ */
