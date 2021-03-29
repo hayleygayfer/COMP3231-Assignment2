@@ -37,6 +37,7 @@
 #include <syscall.h>
 
 #include <copyinout.h>
+#include <file.h>
 
 
 /*
@@ -131,11 +132,11 @@ syscall(struct trapframe *tf)
 			retval = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1, (mode_t)tf->tf_a2);
 			// kprintf("OPENED %d\n", retval);
 			break;
-/*
+
 		case SYS_close:
-			retval = sys_close((userptr_t)tf->tf_a0);
+			retval = sys_close((int)tf->tf_a0);
 			break;
-			
+/*			
 		case SYS_read:
 			retval_signed = sys_read((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1, (userptr_t)tf->tf_a2);
 			break;		

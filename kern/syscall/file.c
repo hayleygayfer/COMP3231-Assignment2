@@ -16,7 +16,7 @@
 #include <copyinout.h>
 
 #define MAX_FILENAME_LEN 128
-#define ERROR            1 // change to appropriate error codes
+#define ERROR            -1 // change to appropriate error codes
 
 #define STDIN            0
 #define STDOUT           1
@@ -38,6 +38,16 @@ of_entry *create_open_file(void) {
     new_open_file->v_ptr = NULL;
 
     return new_open_file;
+}
+
+// Free memory associated with of | return 1 if success or 0 if file non-existent
+int free_open_file(of_entry *open_file) {
+    
+    if (open_file == NULL) return 0;
+
+    kfree(open_file);
+    
+    return 1;
 }
 
 // Add to open file table if the table has not reached capacity
@@ -94,11 +104,26 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
 
     return fd;
 }
-/*
+
 int32_t sys_close(int fd) {
+
+    of_entry *ret = curproc->file_table[fd];
+
+    // File not found in the file table
+    if (ret == NULL) return ERROR;
+
+    vfs_close(ret->v_ptr);
+
+    /* If fd is the last file descriptor referring to the underlying
+    open file description, the resources associated with the ofd are freed */
+
+    free_open_file(curproc->file_table[fd]);
+    curproc->file_table[fd] = NULL;
+    
     return 0;
 }
 
+/*
 ssize_t sys_read(int fd, void *buf, size_t buflen) {
     return (ssize_t)0;
 }*/
