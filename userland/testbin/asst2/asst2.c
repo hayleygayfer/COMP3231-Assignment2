@@ -10,6 +10,7 @@
 #define MAX_BUF 500
 char teststr[] = "The quick brown fox jumped over the lazy dog.";
 char buf[MAX_BUF];
+char buf2[MAX_BUF];
 
 int
 main(int argc, char * argv[])
@@ -85,6 +86,38 @@ main(int argc, char * argv[])
         } while (k < i);
         printf("* file content okay\n");
 
+        // same vpointer, flags, offset
+
+        /* call dup2 */
+        int new_fd = 6; 
+        r = dup2(fd, new_fd);
+
+        if (r != new_fd) {
+                printf("ERROR doesn't return new fd\n");
+        }
+        
+        /* reading and comparing both files to see if they have the same contents */
+
+        printf("* reading dup 2 entire file into buffer \n");
+        i = 0;
+        do  {
+                printf("* attempting read of %d bytes\n", MAX_BUF -i);
+                r = read(new_fd, &buf2[i], MAX_BUF - i);
+                printf("* read %d bytes\n", r);
+                i += r;
+        } while (i < MAX_BUF && r > 0);
+
+        k = j = 0;
+        do {
+                if (buf[k] != buf2[j]) {
+                        printf("ERROR  dup2 file contents mismatch\n");
+                        printf("buf[k] %c != buf2[j] %c\n", buf[k], buf2[j]);
+                        exit();
+                }
+                k++;
+                j = k % r;
+        } while (k < i);
+
         printf("**********\n* testing lseek\n");
         r = lseek(fd, 5, SEEK_SET);
         if (r < 0) {
@@ -117,6 +150,10 @@ main(int argc, char * argv[])
                 k++;
                 j = (k + 5)% r;
         } while (k < 5);
+
+        // read both
+        // check it has a different fd 
+        // check it refers to the same file
 
         printf("* file lseek  okay\n");
         printf("* closing file\n");
