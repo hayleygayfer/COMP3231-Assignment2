@@ -46,7 +46,4 @@ int free_open_file(of_entry *open_file);
 int add_to_of_table(of_entry *ofptr);
 int add_to_fd_table(int process, fd_entry *process_fd_table, of_entry *ofptr);
 
-int32_t sys_open(userptr_t filename, int flags, mode_t mode);
-int32_t sys_close(int fd);
-
 #endif /* _FILE_H_ */

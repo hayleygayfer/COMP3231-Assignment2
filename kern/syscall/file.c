@@ -119,20 +119,40 @@ int32_t sys_close(int fd) {
 
     free_open_file(curproc->file_table[fd]);
     curproc->file_table[fd] = NULL;
-    
+
     return 0;
 }
 
-/*
+
 ssize_t sys_read(int fd, void *buf, size_t buflen) {
-    return (ssize_t)0;
-}*/
+
+    of_entry *of_entry = curproc->file_table[fd];
+
+    if (of_entry == NULL) return ERROR;
+
+    struct iovec iov;
+    struct uio u;
+
+    // char *buffer = kmalloc(buflen);  
+
+    uio_kinit(&iov, &u, buf, buflen, curproc->file_table[fd]->file_offset, UIO_READ);
+
+    int result = VOP_READ(of_entry->v_ptr, &u);
+    if (result) return ERROR;
+
+    curproc->file_table[fd]->file_offset = u.uio_offset;
+
+    size_t bytes_written = buflen - u.uio_resid;
+
+    // kfree(buffer);
+
+    return (ssize_t)bytes_written;
+}
 
 ssize_t sys_write(int fd, const void *buf, size_t nbytes) { 
-    
+
     // VERY DODGY THIS SHOULD BE SOMEWHERE ELSE     
     if (curproc->file_table[fd] == NULL) {
-        // kprintf("\n fd %d | ", fd);
         curproc->file_table[fd] = create_open_file();
         
         /* handling stdin (0), stdout (1), stderr (2) */
