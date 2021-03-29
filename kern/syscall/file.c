@@ -16,7 +16,6 @@
 #include <copyinout.h>
 
 #define MAX_FILENAME_LEN 128
-#define SUCCESS          0
 #define ERROR            1 // change to appropriate error codes
 
 #define STDIN            0
@@ -51,7 +50,7 @@ int add_to_of_table(of_entry *ofptr) {
     current_of_index++;
     /*--------------------------*/
 
-    return SUCCESS;
+    return 0;
 }
 
 /* SYSCALL INTERFACE FUNCTIONS */
@@ -63,7 +62,8 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     size_t *string_length = NULL;
     copyinstr(filename, sname, (size_t)MAX_FILENAME_LEN, string_length);
 
-    // Creating open file node 
+    // Creating open file description, an entry in the system-wide
+    // table of open files 
     of_entry *ret = create_open_file();
 
     // Open file and store virtual node in ret struct
@@ -74,16 +74,25 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     int ret_val = add_to_of_table(ret);
     if (ret_val) return ERROR;
 
-    // Changing the curproc to point to the next available open file node
-    int i = 0; // changing this so file node 0, 1, 2 still valid?? TODO
-    while (curproc->file_table[i] != NULL) {
-        i++;
+    // The file descriptor returned by a successful call will be the
+    // lowest-nubered file descriptor no currently open for the process    
+    int fd = 3;
+    while (curproc->file_table[fd] != NULL) {
+        fd++;
     }
 
     // Inserting open file node into open file table
-    curproc->file_table[i] = ret;
+    curproc->file_table[fd] = ret;
 
-    return SUCCESS;
+    // If append, set file_offset to the end of the file
+    if (flags & O_APPEND) {
+        struct stat statbuf;
+        result = VOP_STAT(curproc->file_table[fd]->v_ptr, &statbuf); 
+        if (result) return ERROR;
+        curproc->file_table[fd]->file_offset = statbuf.st_size; 
+    }
+
+    return fd;
 }
 /*
 int32_t sys_close(int fd) {
@@ -98,7 +107,7 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
     
     // VERY DODGY THIS SHOULD BE SOMEWHERE ELSE     
     if (curproc->file_table[fd] == NULL) {
-        kprintf("\n fd %d | ", fd);
+        // kprintf("\n fd %d | ", fd);
         curproc->file_table[fd] = create_open_file();
         
         /* handling stdin (0), stdout (1), stderr (2) */
