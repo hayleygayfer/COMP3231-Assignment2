@@ -72,13 +72,16 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     size_t *string_length = NULL;
     copyinstr(filename, sname, (size_t)MAX_FILENAME_LEN, string_length);
 
+    if (filename == NULL) return EFAULT; // invalid filename ptr
+
     // Creating open file description, an entry in the system-wide
     // table of open files 
     of_entry *ret = create_open_file();
+    if (ret == NULL) return ENOMEM; // no memory
 
     // Open file and store virtual node in ret struct
     int result = vfs_open(sname, flags, mode, &(ret->v_ptr));
-    if (result) return ERROR;
+    if (result) return result; // return error if error exists
 
     // Inserting open file node into the open file table
     int ret_val = add_to_of_table(ret);
@@ -87,12 +90,15 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     // The file descriptor returned by a successful call will be the
     // lowest-nubered file descriptor no currently open for the process    
     int fd = 3;
-    while (curproc->file_table[fd] != NULL) {
+    while (curproc->file_table[fd] != NULL && fd < OPEN_MAX) {
         fd++;
     }
 
+    if (fd == OPEN_MAX) return EMFILE; // too many open files
+
     // Inserting open file node into open file table
     curproc->file_table[fd] = ret;
+    curproc->file_table[fd]->flags = flags & O_ACCMODE; // set access permissions (read or write)
 
     // If append, set file_offset to the end of the file
     if (flags & O_APPEND) {
@@ -106,6 +112,11 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
 }
 
 int32_t sys_close(int fd) {
+    // ERROR CHECKING
+
+    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
+
+    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
 
     of_entry *ret = curproc->file_table[fd];
 
@@ -125,6 +136,13 @@ int32_t sys_close(int fd) {
 
 
 ssize_t sys_read(int fd, void *buf, size_t buflen) {
+
+    // ERROR CHECKING 
+    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
+    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
+    if (buf == NULL) return EFAULT; // address space invalid
+    if (curproc->file_table[fd]->flags == O_WRONLY) return EACCES; // file is write only
+    if (buflen <= 0) return EINVAL; // buflen cannot be 0 or negative
 
     of_entry *of_entry = curproc->file_table[fd];
 
@@ -152,7 +170,6 @@ ssize_t sys_read(int fd, void *buf, size_t buflen) {
 }
 
 ssize_t sys_write(int fd, const void *buf, size_t nbytes) { 
-
     // VERY DODGY THIS SHOULD BE SOMEWHERE ELSE     
     if (curproc->file_table[fd] == NULL) {
         curproc->file_table[fd] = create_open_file();
@@ -171,6 +188,13 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
 
         curproc->file_table[fd]->v_ptr = stdout_vptr;
     }
+
+    // ERROR CHECKING 
+    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
+    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
+    if (buf == NULL) return EFAULT; // address space invalid
+    if (curproc->file_table[fd]->flags == O_RDONLY) return EACCES; // file is read only
+    if (nbytes <= 0) return EINVAL; // buflen cannot be 0 or negative
 
     int result;
 
@@ -196,13 +220,50 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
     return bytes_written;  
 }
 
-/*
 off_t sys_lseek(int fd, off_t pos, int whence) {
-    return (ssize_t)0;
+    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
+    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
+
+    int result;
+
+    struct stat file_stat; // find stat struct in kern/stat.h
+
+    if (whence == SEEK_SET) {
+        if (pos < 0) return EINVAL; // invalid offset
+        result = curproc->file_table[fd]->file_offset = pos; // return and set given offset from start of file
+    } else if (whence == SEEK_CUR) {
+        result = curproc->file_table[fd]->file_offset += pos; // return and set given offset added to current offset of file
+        if (result < 0) return EINVAL; // result of offset + cur position cannot be 0
+    } else if (whence == SEEK_END) {
+        result = VOP_STAT(curproc->file_table[fd]->v_ptr, &file_stat);
+        if (result) return result; // return if error
+        result = curproc->file_table[fd]->file_offset = pos + file_stat.st_size; // return end of file using size field of file stat
+    } else {
+        return EINVAL;
+    }
+
+    if (!VOP_ISSEEKABLE(curproc->file_table[fd]->v_ptr)) {
+        return ESPIPE; // cannot seek
+    }
+
+    return result;
 }
 
 int32_t sys_dup2(int oldfd, int newfd) {
-    return 0;
+    if (oldfd < 0 || oldfd >= OPEN_MAX) return EBADF; // invalid oldfd
+    if (newfd < 0 || newfd >= OPEN_MAX) return EBADF; // invalid oldfd
+    if (curproc->file_table[oldfd] == NULL) return EBADF; // invalid fd
+
+    int result;
+
+    if (curproc->file_table[newfd] != NULL) {
+        result = sys_close(newfd); // attempt to close file if new fd is occupied
+        if (result) return result; // return error if failed
+    }
+
+    curproc->file_table[newfd] = curproc->file_table[oldfd]; // put a copy of of_entry in fd into newfd
+
+    return newfd;
 }
-*/
+
 

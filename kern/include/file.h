@@ -29,6 +29,7 @@
 typedef struct open_file {
     struct vnode *v_ptr;
     off_t file_offset;
+    int flags; // read or write permissions
 } of_entry;
 
 // file descriptor entry 
