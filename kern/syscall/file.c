@@ -137,16 +137,18 @@ ssize_t sys_read(int fd, void *buf, size_t buflen) {
 
     uio_kinit(&iov, &u, buf, buflen, curproc->file_table[fd]->file_offset, UIO_READ);
 
+    size_t bytes_remaining = u.uio_resid;
+
     int result = VOP_READ(of_entry->v_ptr, &u);
     if (result) return ERROR;
 
-    curproc->file_table[fd]->file_offset = u.uio_offset;
+    bytes_remaining = buflen - u.uio_resid;
 
-    size_t bytes_written = buflen - u.uio_resid;
+    curproc->file_table[fd]->file_offset = u.uio_offset;
 
     // kfree(buffer);
 
-    return (ssize_t)bytes_written;
+    return bytes_remaining;
 }
 
 ssize_t sys_write(int fd, const void *buf, size_t nbytes) { 
