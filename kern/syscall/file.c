@@ -16,11 +16,6 @@
 #include <copyinout.h>
 
 #define MAX_FILENAME_LEN 128
-#define ERROR            -1 // change to appropriate error codes
-
-#define STDIN            0
-#define STDOUT           1
-#define STDERR           2
 
 /* GLOBAL VARIABLES */
 
@@ -29,7 +24,7 @@ of_entry open_file_table[OPEN_MAX];
 
 /* FILE RELATED FUNCTIONS */
 
-// create a new open file | return pointer to the open_file struct
+/* create a new open file | return pointer to the open_file struct */
 of_entry *create_open_file(void) {
 
     of_entry *new_open_file = kmalloc(sizeof(of_entry));
@@ -42,25 +37,27 @@ of_entry *create_open_file(void) {
     return new_open_file;
 }
 
-// Free memory associated with of | return 1 if success or 0 if file non-existent
+/* Free memory associated with open file */
+
 int free_open_file(of_entry *open_file) {
     
-    if (open_file == NULL) return 0;
+    if (open_file == NULL) 
+        return EBADF; // invalid file
 
     kfree(open_file);
     
-    return 1;
+    return 0;
 }
 
-// Add to open file table if the table has not reached capacity
+/* Add to open file table if the table has not reached capacity */
+
 int add_to_of_table(of_entry *ofptr) {
 
-    if (current_of_index >= OPEN_MAX) return ERROR;
+    if (current_of_index >= OPEN_MAX) 
+        return ENFILE; // system filetable full
 
-    /* ADD SYNCHRONISATION HERE */
     open_file_table[current_of_index] = *ofptr;
     current_of_index++;
-    /*--------------------------*/
 
     return 0;
 }
@@ -69,34 +66,44 @@ int add_to_of_table(of_entry *ofptr) {
 
 int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
 
+    if (filename == NULL) 
+        return EFAULT; // invalid filename ptr
+
+    if (!(flags & O_RDONLY) || 
+        !(flags & O_WRONLY) || 
+        !(flags & O_RDWR)) 
+        return EINVAL; // invalid flags
+
     // Copy filename string into kernel-space 
     char sname[MAX_FILENAME_LEN];
     size_t *string_length = NULL;
     copyinstr(filename, sname, (size_t)MAX_FILENAME_LEN, string_length);
 
-    if (filename == NULL) return EFAULT; // invalid filename ptr
-
     // Creating open file description, an entry in the system-wide
     // table of open files 
     of_entry *ret = create_open_file();
-    if (ret == NULL) return ENOMEM; // no memory
+    if (ret == NULL) 
+        return ENOMEM; // no memory
 
     // Open file and store virtual node in ret struct
     int result = vfs_open(sname, flags, mode, &(ret->v_ptr));
-    if (result) return result; // return error if error exists
+    if (result) 
+        return result; // return error if error exists
 
     // Inserting open file node into the open file table
     int ret_val = add_to_of_table(ret);
-    if (ret_val) return ERROR;
+    if (ret_val) 
+        return ret_val; // system filetable full
 
     // The file descriptor returned by a successful call will be the
-    // lowest-nubered file descriptor no currently open for the process    
+    // lowest-numbered file descriptor no currently open for the process    
     int fd = 3;
     while (curproc->file_table[fd] != NULL && fd < OPEN_MAX) {
         fd++;
     }
 
-    if (fd == OPEN_MAX) return EMFILE; // too many open files
+    if (fd == OPEN_MAX)
+        return EMFILE; // too many open files
 
     // Inserting open file node into open file table
     curproc->file_table[fd] = ret;
@@ -106,8 +113,11 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     // If append, set file_offset to the end of the file
     if (flags & O_APPEND) {
         struct stat statbuf;
+
         result = VOP_STAT(curproc->file_table[fd]->v_ptr, &statbuf); 
-        if (result) return ERROR;
+        if (result) 
+            return result;
+        
         curproc->file_table[fd]->file_offset = statbuf.st_size; 
     }
 
@@ -115,28 +125,25 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
 }
 
 int32_t sys_close(int fd) {
-    // ERROR CHECKING
+    
+    if (fd < 0 || fd >= OPEN_MAX) 
+        return EBADF; // invalid fd
 
-    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
+    if (curproc->file_table[fd] == NULL) 
+        return EBADF; // invalid fd
 
-    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
+    curproc->file_table[fd]->ref_count--;
 
-    of_entry *ret = curproc->file_table[fd];
+    /* If fd is the last file descriptor referring to the underlying
+    open file description, the resources associated with the ofd are freed */
 
-    ret->ref_count--;
+    if (curproc->file_table[fd]->ref_count == 0) {
 
-    // File not found in the file table
-    if (ret == NULL) return ERROR;
-
-    if (ret->ref_count == 0) {
-        vfs_close(ret->v_ptr);
-
-        /* If fd is the last file descriptor referring to the underlying
-        open file description, the resources associated with the ofd are freed */
-
+        vfs_close(curproc->file_table[fd]->v_ptr);
         free_open_file(curproc->file_table[fd]);
+        
         curproc->file_table[fd] = NULL; // update fd process table
-        return 0;
+
     }
 
     return 0;
@@ -146,44 +153,59 @@ int32_t sys_close(int fd) {
 ssize_t sys_read(int fd, void *buf, size_t buflen) {
 
     // ERROR CHECKING 
-    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
-    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
-    if (buf == NULL) return EFAULT; // address space invalid
-    if (curproc->file_table[fd]->flags == O_WRONLY) return EACCES; // file is write only
-    if (buflen <= 0) return EINVAL; // buflen cannot be 0 or negative
 
-    of_entry *of_entry = curproc->file_table[fd];
+    if (fd < 0 || fd >= OPEN_MAX) 
+        return EBADF; // invalid fd
 
-    if (of_entry == NULL) return ERROR;
+    if (curproc->file_table[fd] == NULL) 
+        return EBADF; // invalid fd
+    
+    if (buf == NULL) 
+        return EFAULT; // address space invalid
+    
+    if (curproc->file_table[fd]->flags == O_WRONLY) 
+        return EACCES; // file is write only
+    
+    if (buflen <= 0) 
+        return EINVAL; // buflen cannot be 0 or negative
+
+    // READING FILE 
 
     struct iovec iov;
     struct uio u;
-
-    // char *buffer = kmalloc(buflen);  
 
     uio_kinit(&iov, &u, buf, buflen, curproc->file_table[fd]->file_offset, UIO_READ);
 
     size_t bytes_remaining = u.uio_resid;
 
     int result = VOP_READ(of_entry->v_ptr, &u);
-    if (result) return ERROR;
+    if (result) 
+        return result;
 
     bytes_remaining = buflen - u.uio_resid;
 
     curproc->file_table[fd]->file_offset = u.uio_offset;
 
-    // kfree(buffer);
-
     return bytes_remaining;
 }
 
 ssize_t sys_write(int fd, const void *buf, size_t nbytes) { 
+
     // ERROR CHECKING 
-    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
-    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
-    if (buf == NULL) return EFAULT; // address space invalid
-    if (curproc->file_table[fd]->flags == O_RDONLY) return EACCES; // file is read only
-    if (nbytes <= 0) return EINVAL; // buflen cannot be 0 or negative
+    if (fd < 0 || fd >= OPEN_MAX)
+        return EBADF; // invalid fd
+    
+    if (curproc->file_table[fd] == NULL)
+        return EBADF; // invalid fd
+
+    if (buf == NULL)
+        return EFAULT; // address space invalid
+
+    if (curproc->file_table[fd]->flags == O_RDONLY) 
+        return EACCES; // file is read only
+
+    if (nbytes <= 0) 
+        return EINVAL; // buflen cannot be 0 or negative
 
     int result;
 
@@ -197,7 +219,7 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
     // Initialise uio suitable for I/O from a kernal buffer
     uio_kinit(&iov, &u, buffer, nbytes, curproc->file_table[fd]->file_offset, UIO_WRITE);
     result = VOP_WRITE(curproc->file_table[fd]->v_ptr, &u);
-    if (result) return ERROR;
+    if (result) return result;
 
     // Update file offset
     curproc->file_table[fd]->file_offset = u.uio_offset;
@@ -210,23 +232,38 @@ ssize_t sys_write(int fd, const void *buf, size_t nbytes) {
 }
 
 off_t sys_lseek(int fd, off_t pos, int whence) {
-    if (fd < 0 || fd >= OPEN_MAX) return EBADF; // invalid fd
-    if (curproc->file_table[fd] == NULL) return EBADF; // invalid fd
+
+    if (fd < 0 || fd >= OPEN_MAX) 
+        return EBADF; // invalid fd
+
+    if (curproc->file_table[fd] == NULL) 
+        return EBADF; // invalid fd
 
     int result;
-
     struct stat file_stat; // find stat struct in kern/stat.h
 
     if (whence == SEEK_SET) {
-        if (pos < 0) return EINVAL; // invalid offset
-        result = curproc->file_table[fd]->file_offset = pos; // return and set given offset from start of file
+        if (pos < 0) 
+            return EINVAL; // invalid offset
+
+        // return and set given offset from start of file
+        result = curproc->file_table[fd]->file_offset = pos; 
+
     } else if (whence == SEEK_CUR) {
-        result = curproc->file_table[fd]->file_offset += pos; // return and set given offset added to current offset of file
-        if (result < 0) return EINVAL; // result of offset + cur position cannot be 0
+        // return and set given offset added to current offset of file
+        result = curproc->file_table[fd]->file_offset += pos; 
+
+        if (result < 0)
+            return EINVAL; // result of offset + cur position cannot be 0
+        
     } else if (whence == SEEK_END) {
         result = VOP_STAT(curproc->file_table[fd]->v_ptr, &file_stat);
-        if (result) return result; // return if error
-        result = curproc->file_table[fd]->file_offset = pos + file_stat.st_size; // return end of file using size field of file stat
+        if (result) 
+            return result; // return if error
+        
+        // return end of file using size field of file stat
+        result = curproc->file_table[fd]->file_offset = pos + file_stat.st_size; 
+        
     } else {
         return EINVAL;
     }
@@ -239,47 +276,55 @@ off_t sys_lseek(int fd, off_t pos, int whence) {
 }
 
 int32_t sys_dup2(int oldfd, int newfd) {
-    if (oldfd < 0 || oldfd >= OPEN_MAX) return EBADF; // invalid oldfd
-    if (newfd < 0 || newfd >= OPEN_MAX) return EBADF; // invalid oldfd
-    if (curproc->file_table[oldfd] == NULL) return EBADF; // invalid fd
+    
+    if (oldfd < 0 || oldfd >= OPEN_MAX) 
+        return EBADF; // invalid oldfd
+    
+    if (newfd < 0 || newfd >= OPEN_MAX) 
+        return EBADF; // invalid oldfd
+    
+    if (curproc->file_table[oldfd] == NULL) 
+        return EBADF; // invalid fd
 
     int result;
 
+    // attempt to close file if new fd is occupied
     if (curproc->file_table[newfd] != NULL) {
-        result = sys_close(newfd); // attempt to close file if new fd is occupied
-        if (result) return result; // return error if failed
+        result = sys_close(newfd); 
+        if (result)
+            return result;
     }
 
-    curproc->file_table[newfd] = curproc->file_table[oldfd]; // put a copy of of_entry in fd into newfd
+    // put a copy of of_entry in fd into newfd
+    curproc->file_table[newfd] = curproc->file_table[oldfd]; 
     curproc->file_table[newfd]->ref_count++;
 
     return newfd;
 }
 
+/* handling stdin (0), stdout (1), stderr (2) */
 int run_stdio() {
+    
     int result;
-    /* handling stdin (0), stdout (1), stderr (2) */
 
     /*------------------STDIN---------------------*/
     of_entry *stdin = create_open_file();
 
     curproc->file_table[0] = stdin;
-    if (curproc->file_table[0] == NULL) return ENOMEM;
+    if (curproc->file_table[0] == NULL)
+        return ENOMEM;
 
     curproc->file_table[0]->ref_count = 1;
     curproc->file_table[0]->flags = O_RDONLY;
 
-    // struct vnode *stdin_vptr;
     struct vnode *stdin_vptr;
-    // struct vnode *stderr_vptr;
 
     char c0[] = "con:";
     
-    // vfs_open(stdio_path, O_RDONLY, 0, &stdin_vptr);
     result = vfs_open(c0, O_RDONLY, 0, &stdin_vptr);
-    // vfs_open(stdio_path, O_WRONLY, 0, &stderr_vptr);
 
-    if (result) return result; // error handling
+    if (result)
+        return result; // error handling
 
     curproc->file_table[0]->v_ptr = stdin_vptr;
 
@@ -292,7 +337,8 @@ int run_stdio() {
     of_entry *stdout = create_open_file();
 
     curproc->file_table[1] = stdout;
-    if (curproc->file_table[1] == NULL) return ENOMEM;
+    if (curproc->file_table[1] == NULL)
+        return ENOMEM;
 
     curproc->file_table[1]->ref_count = 1;
     curproc->file_table[1]->flags = O_WRONLY;
@@ -303,7 +349,8 @@ int run_stdio() {
 
     curproc->file_table[1]->v_ptr = stdout_vptr;
 
-	if (result) return result; // error handling
+	if (result)
+        return result; // error handling
 
     /*------------------STERR---------------------*/
 
@@ -312,7 +359,8 @@ int run_stdio() {
     of_entry *stderr = create_open_file();
 
     curproc->file_table[2] = stderr;
-    if (curproc->file_table[2] == NULL) return ENOMEM;
+    if (curproc->file_table[2] == NULL)
+        return ENOMEM;
 
     curproc->file_table[2]->ref_count = 1;
     curproc->file_table[2]->flags = O_WRONLY;
@@ -323,7 +371,8 @@ int run_stdio() {
 
     curproc->file_table[2]->v_ptr = stderr_vptr;
 
-	if (result) return result; // error handling
+	if (result) 
+        return result; // error handling
 
     return 0;
 }
