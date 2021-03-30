@@ -70,7 +70,6 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
         return EFAULT; // invalid filename ptr
 
     // check invalid flags
-    
     // Copy filename string into kernel-space 
     char sname[MAX_FILENAME_LEN];
     size_t *string_length = NULL;
@@ -286,7 +285,7 @@ int32_t sys_dup2(int oldfd, int newfd) {
     int result;
 
     // attempt to close file if new fd is occupied
-    if (curproc->file_table[newfd] != NULL) {
+    if (curproc->file_table[newfd] != NULL && newfd != oldfd) {
         result = sys_close(newfd); 
         if (result)
             return result;
