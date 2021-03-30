@@ -78,7 +78,7 @@ main(int argc, char * argv[])
         r = strlen(teststr);
         do {
                 if (buf[k] != teststr[j]) {
-                        printf("ERROR  file contents mismatch\n");
+                        printf("ERROR  file contents mismatch");
                         exit(1);
                 }
                 k++;
@@ -112,7 +112,7 @@ main(int argc, char * argv[])
                 if (buf[k] != buf2[j]) {
                         printf("ERROR  dup2 file contents mismatch\n");
                         printf("buf[k] %c != buf2[j] %c\n", buf[k], buf2[j]);
-                        exit();
+                        exit(1);
                 }
                 k++;
                 j = k % r;

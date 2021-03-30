@@ -126,8 +126,6 @@ syscall(struct trapframe *tf)
 
 	    /* Add stuff here */
 
-		// TODO: check convention
-
 		case SYS_open:
 			// kprintf("OPEN CASE\n");
 			retval = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1, (mode_t)tf->tf_a2);
@@ -139,7 +137,7 @@ syscall(struct trapframe *tf)
 			break;
 		
 		case SYS_read:
-			kprintf("READING\n");
+			// kprintf("READING\n");
 			retval = sys_read((int)tf->tf_a0, (void *)tf->tf_a1, (size_t)tf->tf_a2);
 			break;	
 

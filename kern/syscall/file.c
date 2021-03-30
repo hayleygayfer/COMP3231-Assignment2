@@ -69,11 +69,8 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     if (filename == NULL) 
         return EFAULT; // invalid filename ptr
 
-    if (!(flags & O_RDONLY) || 
-        !(flags & O_WRONLY) || 
-        !(flags & O_RDWR)) 
-        return EINVAL; // invalid flags
-
+    // check invalid flags
+    
     // Copy filename string into kernel-space 
     char sname[MAX_FILENAME_LEN];
     size_t *string_length = NULL;
@@ -178,7 +175,7 @@ ssize_t sys_read(int fd, void *buf, size_t buflen) {
 
     size_t bytes_remaining = u.uio_resid;
 
-    int result = VOP_READ(of_entry->v_ptr, &u);
+    int result = VOP_READ(curproc->file_table[fd]->v_ptr, &u);
     if (result) 
         return result;
 
