@@ -37,6 +37,7 @@ of_entry *create_open_file(void) {
     new_open_file->file_offset = 0;
     new_open_file->v_ptr = NULL;
     new_open_file->flags = 0;
+    new_open_file->ref_count = 0;
 
     return new_open_file;
 }
@@ -100,6 +101,7 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
     // Inserting open file node into open file table
     curproc->file_table[fd] = ret;
     curproc->file_table[fd]->flags = flags & O_ACCMODE; // set access permissions (read or write)
+    curproc->file_table[fd]->ref_count = 1;
 
     // If append, set file_offset to the end of the file
     if (flags & O_APPEND) {
@@ -121,16 +123,21 @@ int32_t sys_close(int fd) {
 
     of_entry *ret = curproc->file_table[fd];
 
+    ret->ref_count--;
+
     // File not found in the file table
     if (ret == NULL) return ERROR;
 
-    vfs_close(ret->v_ptr);
+    if (ret->ref_count == 0) {
+        vfs_close(ret->v_ptr);
 
-    /* If fd is the last file descriptor referring to the underlying
-    open file description, the resources associated with the ofd are freed */
+        /* If fd is the last file descriptor referring to the underlying
+        open file description, the resources associated with the ofd are freed */
 
-    free_open_file(curproc->file_table[fd]);
-    curproc->file_table[fd] = NULL;
+        free_open_file(curproc->file_table[fd]);
+        curproc->file_table[fd] = NULL; // update fd process table
+        return 0;
+    }
 
     return 0;
 }
@@ -244,6 +251,7 @@ int32_t sys_dup2(int oldfd, int newfd) {
     }
 
     curproc->file_table[newfd] = curproc->file_table[oldfd]; // put a copy of of_entry in fd into newfd
+    curproc->file_table[newfd]->ref_count++;
 
     return newfd;
 }
@@ -258,6 +266,7 @@ int run_stdio() {
     curproc->file_table[0] = stdin;
     if (curproc->file_table[0] == NULL) return ENOMEM;
 
+    curproc->file_table[0]->ref_count = 1;
     curproc->file_table[0]->flags = O_RDONLY;
 
     // struct vnode *stdin_vptr;
@@ -285,6 +294,7 @@ int run_stdio() {
     curproc->file_table[1] = stdout;
     if (curproc->file_table[1] == NULL) return ENOMEM;
 
+    curproc->file_table[1]->ref_count = 1;
     curproc->file_table[1]->flags = O_WRONLY;
 
     struct vnode *stdout_vptr;
@@ -304,6 +314,7 @@ int run_stdio() {
     curproc->file_table[2] = stderr;
     if (curproc->file_table[2] == NULL) return ENOMEM;
 
+    curproc->file_table[2]->ref_count = 1;
     curproc->file_table[2]->flags = O_WRONLY;
 
     struct vnode *stderr_vptr;
