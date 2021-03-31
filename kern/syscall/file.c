@@ -70,6 +70,10 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
         return EFAULT; // invalid filename ptr
 
     // check invalid flags
+    int flag_mode = flags & O_ACCMODE;
+    if (flag_mode != O_RDONLY || flag_mode != O_WRONLY || flag_mode != O_RDWR)
+        return EINVAL; 
+
     // Copy filename string into kernel-space 
     char sname[MAX_FILENAME_LEN];
     size_t *string_length = NULL;
@@ -116,7 +120,7 @@ int32_t sys_open(userptr_t filename, int flags, mode_t mode) {
         
         curproc->file_table[fd]->file_offset = statbuf.st_size; 
     }
-
+    
     return fd;
 }
 
@@ -235,6 +239,10 @@ off_t sys_lseek(int fd, off_t pos, int whence) {
     if (curproc->file_table[fd] == NULL) 
         return EBADF; // invalid fd
 
+    if (!VOP_ISSEEKABLE(curproc->file_table[fd]->v_ptr)) {
+        return ESPIPE; // cannot seek
+    }
+
     int result;
     struct stat file_stat; // find stat struct in kern/stat.h
 
@@ -260,12 +268,11 @@ off_t sys_lseek(int fd, off_t pos, int whence) {
         // return end of file using size field of file stat
         result = curproc->file_table[fd]->file_offset = pos + file_stat.st_size; 
         
+        if (result < 0)
+            return EINVAL; // resulting seek position is negative
+
     } else {
         return EINVAL;
-    }
-
-    if (!VOP_ISSEEKABLE(curproc->file_table[fd]->v_ptr)) {
-        return ESPIPE; // cannot seek
     }
 
     return result;

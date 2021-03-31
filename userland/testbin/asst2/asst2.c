@@ -23,6 +23,7 @@ main(int argc, char * argv[])
 
         snprintf(buf, MAX_BUF, "**********\n* write() works for stdout\n");
         write(1, buf, strlen(buf));
+
         snprintf(buf, MAX_BUF, "**********\n* write() works for stderr\n");
         write(2, buf, strlen(buf));
 

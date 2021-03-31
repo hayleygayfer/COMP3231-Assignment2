@@ -1,8 +1,9 @@
 21T1 COMP3231 ASSIGNMENT 2 DESIGN DOCUMENT
 Hayley Gayfer (z5312096) and Ada Luong (z5312237)
 ------------------------------------------------------------------------------------------------
-What data structures have you added and what function do they perform?  Open File
-Structure: An Open file is a typedef struct (denoted of_entry) representing open files
+What data structures have you added and what function do they perform?  
+
+1. Open File Structure: An Open file is a typedef struct (denoted of_entry) representing open files
 and their associated data, they contain the following fields:
     - (struct vnode *v_ptr) A pointer to the vnode of the open file.  
     - (off_t file_offset) An offset value which keeps track of the place in the file that has
@@ -10,6 +11,7 @@ and their associated data, they contain the following fields:
     - (int flags) A value representing the Flags associated with the open file (e.g. O_WRONLY, O_RDONLY).
     - (int ref_count) A value representing the number of references to the open file
     in the Per Process FIle Descriptor Table.
+
 Purpose: Maintains the metadata of each open file, which can be altered by the relevant
 syscall / vfs functions. E.g.
     - v_ptr is used to invoke vfs and vnode functions such as vfs_open(), vfs_close(),
@@ -20,9 +22,10 @@ syscall / vfs functions. E.g.
     - ref_count is set initially by sys_open(), and then can later be updated by sys_dup2() when 
     additional references are made to the same open file within one process’ File Descriptor Table.
 
-Per Process File Descriptor Tables Structure: File Descriptor Tables are unique
+2. Per Process File Descriptor Tables Structure: File Descriptor Tables are unique
 to each process, consisting of an array of size MAX_OPEN of pointers to Open Files
 (of_entry). They are located within the proc struct of their relevant process.  
+
 Purpose:
     - The File Descriptor Table of a process can be accessed through curproc, so all
     operations done by the current process on files that it has accessed can be done
@@ -32,20 +35,26 @@ Purpose:
     - The table can contain multiple references to the same Open file via indexes (fd’s) 
     containing the same of_entry pointer. (This is important for sys_dup2()).
 
-Open File Table Structure: The Open File Table is a global array of size
-MAX_OPEN of of_entry (Open File)’s.  Purpose: It’s intention is to keep
-track of Open Files across processes, in the event that concurrency is required.
+3. Open File Table Structure: The Open File Table is a global array of size
+MAX_OPEN of of_entry (Open File)’s.  
+
+Purpose: It’s intention is to keep track of Open Files across processes, in the event that 
+concurrency is required.
+
 ------------------------------------------------------------------------------------------------
 What are any significant issues surround managing the data structures and state do
-they contain?  It is essential that syscall functions maintain and update the Open
-Files appropriately. For example, sys_read() and sys_write() should always update the
+they contain?
+
+It is essential that syscall functions maintain and update the Open Files appropriately. 
+For example, sys_read() and sys_write() should always update the
 file_offset, otherwise file contents may be written over or read incorrectly.
 
-Critical regions and Synchronisation In the event that processes are multi-threaded,
-and a single process can call multiple syscalls at once, this makes the accessing and
-altering of Open Files within their respective tables a critical region. The solution
-to this is to potentially add a lock field to the Open File struct (using the existing
-lock ADT), and then create and subsequently destroy locks around critical regions in
+Critical regions and Synchronisation
+
+In the event that processes are multi-threaded, and a single process can call multiple syscalls 
+at once, this makes the accessing and altering of Open Files within their respective tables a 
+critical region. The solutionto this is to potentially add a lock field to the Open File struct 
+(using the existing lock ADT), and then create and subsequently destroy locks around critical regions in
 each syscall function.
 
 Alternatively, if processes are required to run concurrently, then the Open File Table
@@ -56,18 +65,20 @@ data). This is also solved but introducing locks to these functions / data struc
 However adding synchronisation to these data structures is relatively easy and possible.
 ------------------------------------------------------------------------------------------------
 What data structures are per-process and what structures are shared between processes?
+
 File Descriptor Tables are per-process, given that their purpose is to allow processes
 to easily access files that they have opened themselves.
 
 Open Files are shared between processes, as multiple processes should be able to
 access the same file (e.g. writing to the same file). This requires synchronisation
-(such as adding a lock around that area so multiple processes cannot overwrite previous
+(such as adding a lock around the critical regions so multiple processes cannot overwrite previous
 additions to a file)
 
 The Open File Table is also shared between processes.
 ------------------------------------------------------------------------------------------------
-Are there any issues related to transferring data to and from applications?  Issues in
-transferring data between the kernel space and userland included:
+Are there any issues related to transferring data to and from applications?
+
+Issues in transferring data between the kernel space and userland included:
     - Properly type-casting the contents of extracted registers so they could be
     inputted correctly into the syscall functions.
         - Solution: registers were type-cast with the appropriate types before
@@ -82,13 +93,14 @@ transferring data between the kernel space and userland included:
     - Extracting the filename from the userptr_t type input into sys_open().
         - Solution: the copyinstr() function was used to convert the (userptr_t)
         filename to (char *) so it could be manipulated by vfs_open().
+
 ------------------------------------------------------------------------------------------------
 If fork() was implemented, what concurrency issues would be introduced to your
-implementation?  The additional child process generated by fork() would be accessing
-the same Open Files and calling the same operations on them. Hence possible concurrency
-issues would include:
+implementation? 
+
+The additional child process generated by fork() would be accessing the same Open Files and 
+calling the same operations on them. Hence possible concurrency issues would include:
     - Both processes updating file metadata concurrently and overwriting important
     fields such as file_offset and ref_count.  
-    - Processes both calling sys_write() before updating the file_offset and subsequently 
+    - eg. Processes both calling sys_write() before updating the file_offset and subsequently 
     overwriting data within the file.
-    - etc.
